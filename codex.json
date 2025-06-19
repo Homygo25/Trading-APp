@@ -1,0 +1,14 @@
+{
+  "name": "AI Trading Signal Web App",
+  "framework": "vite",
+  "install": {
+    "command": "npm install"
+  },
+  "build": {
+    "command": "npm run build",
+    "output": "dist"
+  },
+  "start": {
+    "command": "npx serve dist"
+  }
+}
