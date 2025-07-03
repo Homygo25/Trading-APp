@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import RealTimeStatus from '@/components/RealTimeStatus';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -40,6 +40,7 @@ const Header = ({
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'signals', label: 'Signals', icon: TargetIcon },
     { id: 'charts', label: 'Charts', icon: TrendingUp },
+    { id: 'portfolio', label: 'Portfolio', icon: User },
     { id: 'strategy', label: 'Strategy Builder', icon: Brain },
   ];
 
@@ -107,6 +108,9 @@ const Header = ({
               Pro
             </Button>
           </div>
+
+          {/* Real-time Status Indicator */}
+          <RealTimeStatus />
 
           <Button
             size="icon"

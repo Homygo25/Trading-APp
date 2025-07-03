@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -10,39 +9,50 @@ import {
   BarChart3, 
   Maximize2,
   Settings,
-  Target
+  Target,
+  Activity,
+  RefreshCw,
+  TrendingDown as LineChart,
+  Zap
 } from 'lucide-react';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
 const ChartWidget = ({ fullScreen = false }) => {
-  const { selectedAsset, marketData, generateNewSignal } = useTradingContext();
+  const { 
+    selectedAsset, 
+    marketData, 
+    chartData,
+    generateNewSignal, 
+    fetchChartData,
+    loading 
+  } = useTradingContext();
   const { toast } = useToast();
   const [timeframe, setTimeframe] = useState('4H');
-  const [chartData, setChartData] = useState([]);
+  const [chartType, setChartType] = useState('line');
+  const [showVolume, setShowVolume] = useState(false);
 
   useEffect(() => {
-    const generateMockData = () => {
-      const data = [];
-      let price = marketData[selectedAsset]?.price || 43000;
-      
-      for (let i = 0; i < 20; i++) {
-        const change = (Math.random() - 0.5) * (price * 0.01); 
-        price += change;
-        data.push({
-          time: Date.now() - (20 - i) * 3600000,
-          open: price - Math.random() * (price * 0.005),
-          high: price + Math.random() * (price * 0.005),
-          low: price - Math.random() * (price * 0.005),
-          close: price,
-          volume: Math.random() * 1000000
-        });
-      }
-      return data;
-    };
+    if (selectedAsset) {
+      fetchChartData(selectedAsset, timeframe);
+    }
+  }, [selectedAsset, timeframe, fetchChartData]);
 
-    setChartData(generateMockData());
-  }, [selectedAsset, marketData, timeframe]);
+  const currentChartData = chartData[`${selectedAsset}_${timeframe}`] || [];
 
-  const handlePatternDetection = () => {
+  // Transform data for Recharts
+  const transformedData = currentChartData.map((item, index) => ({
+    time: new Date(item.time || Date.now() - (currentChartData.length - index) * 3600000).toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }),
+    price: item.close || item.price || 0,
+    volume: item.volume || 0,
+    high: item.high || item.price || 0,
+    low: item.low || item.price || 0,
+    open: item.open || item.price || 0,
+  }));
+
+  const handlePatternDetection = async () => {
     const patterns = ['Head & Shoulders', 'Double Top', 'Bullish Flag', 'Triangle Breakout'];
     const pattern = patterns[Math.floor(Math.random() * patterns.length)];
     
@@ -53,18 +63,47 @@ const ChartWidget = ({ fullScreen = false }) => {
     });
 
     const signalType = Math.random() > 0.5 ? 'BUY' : 'SELL';
-    generateNewSignal(selectedAsset, signalType);
+    await generateNewSignal(selectedAsset, signalType, { pattern });
+  };
+
+  const handleRefreshChart = () => {
+    fetchChartData(selectedAsset, timeframe);
+    toast({
+      title: "🔄 Chart Refreshed",
+      description: "Chart data has been updated",
+      duration: 2000,
+    });
   };
 
   const handleNotImplemented = (feature) => {
     toast({
       title: "🚧 Feature Coming Soon!",
-      description: `${feature} isn't implemented yet—but don't worry! You can request it in your next prompt! 🚀`,
+      description: `${feature} will be available in the next update! 🚀`,
       duration: 3000,
     });
   };
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
+
+  const formatTooltip = (value, name) => {
+    if (name === 'price') {
+      return [`$${parseFloat(value).toFixed(2)}`, 'Price'];
+    }
+    if (name === 'volume') {
+      return [value.toLocaleString(), 'Volume'];
+    }
+    return [value, name];
+  };
+
+  const getCurrentPrice = () => {
+    return marketData[selectedAsset]?.price?.toFixed(2) || '0.00';
+  };
+
+  const getCurrentChange = () => {
+    return marketData[selectedAsset]?.change || 0;
+  };
+
+  const isPositiveChange = getCurrentChange() >= 0;
 
   return (
     <motion.section
@@ -75,111 +114,227 @@ const ChartWidget = ({ fullScreen = false }) => {
     >
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 sm:mb-4">
         <div className="flex items-center space-x-2 md:space-x-3 mb-2 sm:mb-0">
-          <h2 id={`chart-widget-heading-${selectedAsset.replace('/', '-')}`} className="text-sm sm:text-base md:text-lg font-semibold text-white whitespace-nowrap">{selectedAsset}</h2>
+          <h2 id={`chart-widget-heading-${selectedAsset.replace('/', '-')}`} className="text-sm sm:text-base md:text-lg font-semibold text-white whitespace-nowrap">
+            {selectedAsset}
+          </h2>
           <div className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm flex-shrink-0">
-            <span className="text-gray-300">
-              ${marketData[selectedAsset]?.price?.toFixed(2) || '0.00'}
+            <span className="text-gray-300 font-mono">
+              ${getCurrentPrice()}
             </span>
             <div className={`flex items-center space-x-1 ${
-              (marketData[selectedAsset]?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+              isPositiveChange ? 'text-green-400' : 'text-red-400'
             }`}>
-              {(marketData[selectedAsset]?.change || 0) >= 0 ? (
+              {isPositiveChange ? (
                 <TrendingUp className="w-3 h-3 md:w-4 md:h-4" aria-label="Trending Up" />
               ) : (
                 <TrendingDown className="w-3 h-3 md:w-4 md:h-4" aria-label="Trending Down" />
               )}
-              <span>{(marketData[selectedAsset]?.change || 0).toFixed(2)}%</span>
+              <span className="font-mono">{getCurrentChange().toFixed(2)}%</span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center space-x-1 self-end sm:self-center">
+          {/* Timeframe Selector */}
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white mr-2"
+          >
+            {timeframes.map(tf => (
+              <option key={tf} value={tf}>{tf}</option>
+            ))}
+          </select>
+
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => setChartType(chartType === 'line' ? 'area' : 'line')}
+            className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+            title={chartType === 'line' ? 'Switch to Area Chart' : 'Switch to Line Chart'}
+          >
+            {chartType === 'line' ? <Activity className="w-3 h-3" /> : <LineChart className="w-3 h-3" />}
+          </Button>
+
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => setShowVolume(!showVolume)}
+            className={`${showVolume ? 'text-blue-400' : 'text-gray-400'} hover:text-white hover:bg-gray-700/50`}
+            title="Toggle Volume"
+          >
+            <BarChart3 className="w-3 h-3" />
+          </Button>
+
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={handleRefreshChart}
+            disabled={loading}
+            className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+            title="Refresh Chart"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+
           <Button
             size="xs"
             variant="ghost"
             onClick={handlePatternDetection}
-            className="text-green-400 hover:text-green-300 hover:bg-green-400/10 px-1 sm:px-2"
-            aria-label="Detect chart patterns"
+            className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10"
+            title="AI Pattern Detection"
           >
-            <Target className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
-            <span className="hidden sm:inline text-xs">Detect</span>
+            <Zap className="w-3 h-3" />
           </Button>
-          
+
           <Button
-            size="iconxs"
+            size="xs"
             variant="ghost"
-            onClick={() => handleNotImplemented('Chart Settings')}
-            className="text-gray-400 hover:text-white p-1 sm:p-2"
-            aria-label="Chart settings"
+            onClick={() => handleNotImplemented('Fullscreen Chart')}
+            className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+            title="Fullscreen"
           >
-            <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+            <Maximize2 className="w-3 h-3" />
           </Button>
-          
-          {!fullScreen && (
-            <Button
-              size="iconxs"
-              variant="ghost"
-              onClick={() => handleNotImplemented('Fullscreen Chart')}
-              className="text-gray-400 hover:text-white p-1 sm:p-2"
-              aria-label="Maximize chart"
-            >
-              <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4" />
-            </Button>
-          )}
         </div>
       </header>
 
-      <nav aria-label="Chart timeframes" className="flex items-center space-x-1 mb-2 sm:mb-4">
-        {timeframes.map((tf) => (
-          <Button
-            key={tf}
-            size="xs"
-            variant={timeframe === tf ? "default" : "ghost"}
-            onClick={() => setTimeframe(tf)}
-            className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 ${
-              timeframe === tf 
-                ? 'bg-green-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-            }`}
-            aria-pressed={timeframe === tf}
-          >
-            {tf}
-          </Button>
-        ))}
-      </nav>
+      {/* Chart Area */}
+      <div className="flex-1 bg-black/20 rounded-lg p-2 relative">
+        {transformedData.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="text-center">
+              <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Loading chart data...</p>
+            </div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            {chartType === 'area' ? (
+              <AreaChart data={transformedData}>
+                <defs>
+                  <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#9ca3af" 
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  stroke="#9ca3af" 
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={['dataMin - 1', 'dataMax + 1']}
+                  tickFormatter={(value) => `$${value.toFixed(0)}`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1f2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={formatTooltip}
+                  labelStyle={{ color: '#9ca3af' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#colorPrice)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#10b981' }}
+                />
+              </AreaChart>
+            ) : (
+              <RechartsLineChart data={transformedData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#9ca3af" 
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  stroke="#9ca3af" 
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={['dataMin - 1', 'dataMax + 1']}
+                  tickFormatter={(value) => `$${value.toFixed(0)}`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1f2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={formatTooltip}
+                  labelStyle={{ color: '#9ca3af' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#10b981' }}
+                />
+                {showVolume && (
+                  <Line
+                    type="monotone"
+                    dataKey="volume"
+                    stroke="#3b82f6"
+                    strokeWidth={1}
+                    dot={false}
+                    yAxisId="volume"
+                  />
+                )}
+              </RechartsLineChart>
+            )}
+          </ResponsiveContainer>
+        )}
 
-      <div className="relative flex-1 bg-black/40 rounded border border-gray-700/50 p-2 sm:p-4 overflow-hidden" role="figure" aria-label={`Chart for ${selectedAsset} on ${timeframe} timeframe`}>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <BarChart3 className="w-8 h-8 sm:w-12 sm:h-12 md:w-16 md:h-16 text-green-400 mx-auto opacity-50 mb-1 sm:mb-2" aria-hidden="true" />
-          <div className="mb-1 sm:mb-2">
-            <p className="text-gray-400 text-[10px] sm:text-xs md:text-sm">Advanced TradingView Chart</p>
-            <p className="text-gray-500 text-[9px] sm:text-xs">Real-time price action for {selectedAsset}</p>
-          </div>
-          
-          <div className="grid grid-cols-10 gap-0.5 sm:gap-1 w-full px-1 sm:px-2 md:px-4 flex-grow items-end pb-1 sm:pb-2" aria-hidden="true">
-            {chartData.slice(0,10).map((bar, i) => ( 
-              <div
-                key={i}
-                className={`rounded-sm ${
-                  bar.close >= bar.open ? 'bg-green-500/30' : 'bg-red-500/30'
-                }`}
-                style={{ height: `${(Math.abs(bar.high - bar.low) / (marketData[selectedAsset]?.price * 0.02 || 100)) * 60 + 10}%` }} 
-              />
-            ))}
-          </div>
-          
-          <div className="flex justify-center space-x-2 md:space-x-4 mt-auto pt-1 sm:pt-2">
-            <div className="flex items-center space-x-1 text-[9px] sm:text-xs">
-              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-yellow-400 rounded-full pulse-animation" aria-hidden="true"></div>
-              <span className="text-yellow-400">Support</span>
+        {/* Chart Status Indicators */}
+        <div className="absolute top-2 right-2 flex items-center space-x-2">
+          {loading && (
+            <div className="bg-blue-600/20 text-blue-400 text-xs px-2 py-1 rounded flex items-center space-x-1">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span>Updating...</span>
             </div>
-            <div className="flex items-center space-x-1 text-[9px] sm:text-xs">
-              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-400 rounded-full pulse-animation" aria-hidden="true"></div>
-              <span className="text-blue-400">Resistance</span>
-            </div>
+          )}
+          <div className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded">
+            {timeframe}
           </div>
         </div>
       </div>
+
+      {/* Chart Footer with Quick Stats */}
+      {transformedData.length > 0 && (
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50 text-xs text-gray-400">
+          <div className="flex items-center space-x-4">
+            <span>
+              High: <span className="text-green-400">${Math.max(...transformedData.map(d => d.high)).toFixed(2)}</span>
+            </span>
+            <span>
+              Low: <span className="text-red-400">${Math.min(...transformedData.map(d => d.low)).toFixed(2)}</span>
+            </span>
+          </div>
+          <div className="text-right">
+            <span>Volume: {marketData[selectedAsset]?.volume || 'N/A'}</span>
+          </div>
+        </div>
+      )}
     </motion.section>
   );
 };

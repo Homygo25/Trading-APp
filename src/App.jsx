@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +10,7 @@ import AIAssistant from '@/components/AIAssistant';
 import SignalPanel from '@/components/SignalPanel';
 import ChartWidget from '@/components/ChartWidget';
 import StrategyBuilder from '@/components/StrategyBuilder';
+import Portfolio from '@/components/Portfolio';
 import { TradingProvider } from '@/contexts/TradingContext';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ function App() {
         return <SignalPanel />;
       case 'charts':
         return <ChartWidget fullScreen={true} />;
+      case 'portfolio':
+        return <Portfolio />;
       case 'strategy':
         return <StrategyBuilder />;
       default:
